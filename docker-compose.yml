@@ -1,0 +1,19 @@
+services:
+  cafe:
+    build: .
+    ports:
+      - "4000:4000"
+    environment:
+      PORT: 4000
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-change-me}
+      JWT_SECRET: ${JWT_SECRET:-change-me-long-random-secret}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:4000}
+      WHATSAPP_NUMBER: ${WHATSAPP_NUMBER:-77000000000}
+      DB_PATH: data/cafe.sqlite
+      UPLOADS_DIR: uploads
+    volumes:
+      - cafe-uploads:/app/server/uploads
+      - cafe-db:/app/server/data
+volumes:
+  cafe-uploads:
+  cafe-db:
