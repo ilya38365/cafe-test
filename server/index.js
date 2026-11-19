@@ -2,11 +2,16 @@ import cors from "cors";
 import express from "express";
 import rateLimit from "express-rate-limit";
 import helmet from "helmet";
-import jwt from "jsonwebtoken";
 import multer from "multer";
 import { existsSync, mkdirSync } from "fs";
 import { dirname, extname, join } from "path";
 import { fileURLToPath } from "url";
+import {
+  assertSecureConfig,
+  signAdminToken,
+  verifyAdminPassword,
+  verifyAdminToken,
+} from "./auth.js";
 import { config } from "./config.js";
 import { cafe as defaultCafe, ui as defaultUi } from "./data.js";
 import { getSetting, setSetting } from "./db.js";
@@ -33,6 +38,9 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const clientDist = join(__dirname, "../client/dist");
 
 const app = express();
+app.disable("x-powered-by");
+app.set("trust proxy", 1);
+assertSecureConfig();
 
 if (!existsSync(config.uploadsDir)) {
   mkdirSync(config.uploadsDir, { recursive: true });
@@ -102,10 +110,10 @@ const generalLimiter = rateLimit({
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 20,
+  max: 8,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: "Too many login attempts" },
+  message: { error: "Слишком много попыток входа. Подождите 15 минут." },
 });
 
 const orderLimiter = rateLimit({
@@ -265,14 +273,13 @@ app.get("/api/orders/mine", (req, res) => {
 
 app.post("/api/admin/login", authLimiter, (req, res) => {
   const password = String(req.body?.password || "");
-  if (password !== config.adminPassword) {
+  if (!verifyAdminPassword(password)) {
     return res.status(401).json({ error: "Неверный пароль" });
   }
 
-  const token = jwt.sign({ role: "admin" }, config.jwtSecret, { expiresIn: "12h" });
   return res.json({
     ok: true,
-    token,
+    token: signAdminToken(),
     whatsappNumber: config.whatsappNumber,
   });
 });
@@ -410,7 +417,7 @@ app.get("/api/admin/orders", requireAdmin, (_req, res) => {
 app.get("/api/admin/orders/stream", (req, res) => {
   const token = String(req.query.token || "");
   try {
-    jwt.verify(token, config.jwtSecret);
+    verifyAdminToken(token);
   } catch {
     return res.status(401).json({ error: "Unauthorized" });
   }
@@ -471,10 +478,7 @@ function requireAdmin(req, res, next) {
   const header = req.headers.authorization || "";
   const token = header.startsWith("Bearer ") ? header.slice(7) : "";
   try {
-    const payload = jwt.verify(token, config.jwtSecret);
-    if (payload.role !== "admin") {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
+    verifyAdminToken(token);
     return next();
   } catch {
     return res.status(401).json({ error: "Unauthorized" });

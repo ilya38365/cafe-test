@@ -16,6 +16,7 @@ server/uploads/*
 deploy-hyperv.mjs
 update-whatsapp-vm.mjs
 patch-wa-fab-vm.mjs
+secure-vm.mjs
 *.sqlite
 *.sqlite-*
 
